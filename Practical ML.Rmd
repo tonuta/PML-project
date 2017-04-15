@@ -1,0 +1,222 @@
+---
+title: "Practical Machine Learning. Assignment"
+author: "tonuta"
+date: "April 10, 2017"
+output: html_document
+---
+## Practical Machine Learning Course   - *Project*
+
+Clean the environment.
+```{r, echo = TRUE}
+rm(list = ls())
+```
+#### Install some R packages and upload libraries.
+#### install.packages("knitr")
+#### install.packages("markdown")
+#### library(knitr)
+#### library(markdown)
+
+#### **Synopsis.**
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+In this project of Practical machine Learning course, we will use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to predict the manner in which they did the exercise.
+
+#### **Project assignment.**
+
+In this project of Practical machine Learning course, we will use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to predict the manner in which they did the exercise.
+
+#### **Goal of the project.**
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+#### **Step 1: Perform the data exploration.**
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project comes from this original source: http://groupware.les.inf.puc-rio.br/har. 
+
+However, I downloaded the file to my directory containing the programming environment.
+
+The $na.string$ setting is used for the later removal of columns by setting cells with empty space to be $NA$.
+
+```{r, echo = TRUE, warning = FALSE}
+training.data <- read.csv("./Data/pml-training.csv", header = TRUE, sep = ",", stringsAsFactors = T, na.strings = c("", "NA"))
+
+#class(training.data)
+str(training.data)
+# print(head(training.data, 1))
+dim(training.data)
+```
+
+#### **Step 2: Perform the data cleaning.**
+
+#### **Step 2.1: Clean the training data**.
+
+This step is used to remove the columns containing $NA$ and empty spaces along with columns that contain information that is unhelpful for the classification such as the index, date and participant's names.
+
+```{r, echo = TRUE, warning = FALSE}
+training.cleaned.data <- training.data[8:length(training.data)]
+remCol <-  colSums(is.na(training.cleaned.data))
+training.cleaned.data <- training.cleaned.data[, remCol == 0] 
+
+#print(head(training.data, 12))
+#print(tail(training.data, 12))
+```
+
+#### **Step 2.2: Split the upwards training data in training set and validation set**.
+
+
+This step is related to the splitting of training data into a training set and a validation set. The validation set is necessary to estimate the performance of the classifier after it is trained based on the training set.
+
+```{r, echo = TRUE, warning = FALSE}
+require(caret)
+
+set.seed(22519) # the set.seed function is chosen for getting reproductible results, when run mamy times.
+inTrain <- createDataPartition(training.cleaned.data$classe, p = 3/4)[[1]]
+training.set <- training.cleaned.data[inTrain, ]
+validation.set <- training.cleaned.data[-inTrain, ]
+```
+
+```{r, echo = TRUE, warning = FALSE}
+str(training.set)
+str(validation.set)
+
+#Dimensionality for comparison:
+
+dim(training.data)
+dim(training.cleaned.data)
+dim(training.set)
+dim(validation.set)
+```
+
+#### **Step 2.2: Assess the highly correlated variables**.
+
+To asses if there are highly correlated variables, a correlation matrix is plotted.
+
+```{r, echo = TRUE, warning = FALSE}
+library(corrplot)
+
+correlMatrix <- cor(training.set[, -length(names(training.set))])
+corrplot(correlMatrix, method = "color", tl.cex = 0.5)
+```
+
+#### **Step 3: Plot decision tree.**
+
+```{r, echo = TRUE, warning = FALSE}
+require(rpart)
+require(rpart.plot)
+require(rattle)
+
+decision.tree <- rpart(classe ~ ., data = training.set, method = "class")
+fancyRpartPlot(decision.tree, cex = 0.2, tweak = 2, palettes = c("Greys", "Oranges", "Reds", "Greens"), sub = "Decision tree")
+# The gradient of the color in the decision tree represents the accuracy of that node.
+```
+
+```{r, echo = TRUE, warning = FALSE}
+decision.tree.2 <- rpart(classe ~ ., data = training.set, method = "class")
+prp(decision.tree.2)
+```
+
+#### **Step 4: Model the data.**
+
+A predictive model will be fitted using Random Forest algorithm. This fitting way selects important variables and is robust to correlated covariates & outliers. A five-fold cross-validation is used for this predictive model.
+
+```{r, echo = TRUE, warning = FALSE}
+require(randomForest)
+
+random.forest.control <- trainControl(method = "cv", 5)
+random.forest.model <- train(classe ~ ., data = training.set, method = "rf", trControl = random.forest.control, ntree = 10)
+random.forest.model
+```
+
+The results of the confusion matrix command are as follows:
+
+```{r, echo = TRUE, warning = FALSE}
+random.forest.predict.1 <- predict(random.forest.model, training.set)
+confusionMatrix(training.set$classe, random.forest.predict.1)
+```
+Both the accuracy 0.9993 and the kappa indicator 0.9991 of concordance indicate that the model is well adjusted to the chosen parameters.
+
+#### **Step 5: Estimate the performance of the model on the validation set.**
+
+
+The results of the confusion matrix command are as follows:
+
+```{r, echo = TRUE, warning = FALSE}
+random.forest.predict <- predict(random.forest.model, validation.set)
+confusionMatrix(validation.set$classe, random.forest.predict)
+```
+
+Both the accuracy 0.9874 and the kappa indicator 0.984 of concordance indicate that the predictor seems to have a low out of sample error rate.
+
+```{r, echo = TRUE, warning = FALSE}
+model.accuracy <- postResample(random.forest.predict, validation.set$classe)
+print(model.accuracy)
+```
+
+```{r, echo = TRUE, warning = FALSE}
+oose <- 1 - as.numeric(confusionMatrix(validation.set$classe, random.forest.predict)$overall[1])
+oose
+```
+The estimated accuracy of the model is 98.85% and the estimated out-of-sample error is 1.1%.
+
+
+
+#### **Step 6: Load the testing data and clean it.**
+
+The test data cleaning is done in the same way as the training data: removing the columns containing $NA$ and emptying spaces along with columns that contain information which is unhelpful for the classification such as the index, date and participant's names.
+
+```{r, echo = TRUE, warning = FALSE}
+test.data <- read.csv("./Data/pml-testing.csv", header = TRUE, sep = ",", stringsAsFactors = T, na.strings = c("", "NA"))
+```
+
+```{r, echo = TRUE, warning = FALSE}
+test.cleaned.data <- test.data[8:length(test.data)]
+remCol <-  colSums(is.na(test.cleaned.data))
+test.cleaned.data <- test.cleaned.data[, remCol == 0] 
+```
+```{r, echo = TRUE, warning = FALSE}
+str(test.cleaned.data)
+```
+
+```{r, echo = TRUE, warning = FALSE}
+dim(test.cleaned.data)
+```
+
+#### **Step 7: Fit the testing data based on the developed model.**
+
+```{r, echo = TRUE, warning = FALSE}
+test.results.predict <- predict(random.forest.model, test.cleaned.data[, -length(names(test.cleaned.data))])
+test.results.predict
+```
+
+#### **Step 8: Conclusions**.
+
+A model is built to predict physical exercises based on movement data. An estimatation of the out-of-sample error is 1%. This is a promising result regarding the use of machine learning to detect bad exercises.
+
+```{r, echo = TRUE, warning = FALSE}
+function.write.files <- function(y)  {
+  m <- length(y)
+  path <- "I:/Coursera/Data Science Specialization/Course8_Machine learning/Assignments"
+  for(j in 1:m)  {
+    filename <- paste0("test_case_", j, ".txt")
+    write.table(y[j], file = filename, row.names = FALSE, col.names = FALSE, quote = FALSE)
+  }
+}
+
+function.write.files(test.results.predict)
+```
+
+#### **Step 9: R version and System information for this analysis.**
+
+```{r, echo = TRUE, warning = FALSE}
+Sys.info()[1:2]
+R.version.string
+```
